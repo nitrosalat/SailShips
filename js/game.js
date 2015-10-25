@@ -11,6 +11,14 @@ var WORLD_HEIGHT = 1600;
 var WORLD_WIDTH = 2560;
 var MAX_LAYERS = 6;
 
+Transform = function (body) {
+    this.forward = new Phaser.Point(Math.cos(game.math.degToRad(body.angle - 90)),Math.sin(game.math.degToRad(body.angle - 90)));
+    this.right = new Phaser.Point(Math.cos(game.math.degToRad(body.angle)),Math.sin(game.math.degToRad(body.angle)));
+    this.left = Phaser.Point.negative(this.right);
+    this.back = Phaser.Point.negative(this.forward);
+}
+Transform.constructor = Transform;
+
 Ship = function(x,y){
     Phaser.Sprite.call(this,game,x,y);
 
@@ -22,6 +30,9 @@ Ship = function(x,y){
 }
 Ship.prototype = Object.create(Phaser.Sprite.prototype);
 Ship.constructor = Ship;
+Ship.prototype.getTransform = function () {
+    return new Transform(this.body);
+}
 
 
 Atom = function (x, y, numLayers, id) {
@@ -212,6 +223,7 @@ var instructions;
 var ship;
 
 var cursors;
+var graphics;
 
 function preload() {
     game.load.image('background', 'assets/background.jpg');
@@ -228,6 +240,9 @@ function create() {
     ship = new Ship(400,400);
     game.camera.follow(ship);
 
+    graphics = game.add.graphics(0,0);
+
+
     cursors = game.input.keyboard.createCursorKeys();
 
     game.input.onDown.add(click, this);
@@ -243,11 +258,19 @@ function click(event) {
 
 }
 
+function killOrthogonalVelocity(){
+
+
+}
+
 function update() {
+    graphics.clear()
+    graphics.lineStyle(1,0x000000,1)
+    graphics.moveTo(ship.x,ship.y);
+    graphics.lineTo(ship.x + ship.getTransform().left.x*100,ship.y + ship.getTransform().left.y * 100)
     if(cursors.up.isDown)
     {
-        //ship.body.thrust(200);
-        ship.body.moveForward(100);
+        ship.body.thrust(200);
     }
     if(cursors.right.isDown)
     {
