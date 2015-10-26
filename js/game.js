@@ -18,12 +18,46 @@ Transform = function (body) {
     this.back = Phaser.Point.negative(this.forward);
 }
 Transform.constructor = Transform;
+////////////
+Rudder = function(x,y){
+    Phaser.Sprite.call(this,game,x,y);
 
+    game.physics.p2.enable(this,true);
+    this.body.setRectangle(10,30);
+    this.body.angularDamping = 0.5;
+    this.body.mass = 0.1;
+
+    game.add.existing(this);
+}
+Rudder.prototype = Object.create(Phaser.Sprite.prototype);
+Rudder.constructor = Rudder;
+Rudder.prototype.getTransform = function () {
+    return new Transform(this.body);
+}
+Rudder.prototype.addForce = function (force) {
+    this.body.force.x = force.x;
+    this.body.force.y = force.y;
+}
+Rudder.prototype.update = function () {
+    this.killOrthogonalVelocity();
+}
+Rudder.prototype.killOrthogonalVelocity = function () {
+    var vel = new Phaser.Point(this.body.velocity.x,this.body.velocity.y);
+    var forwardVelocity = Phaser.Point.projectUnit(vel,this.getTransform().forward);
+    var orthogonalVel = Phaser.Point.project(vel,this.getTransform().right);
+    var drift = 0.5;
+
+    var resultVel = Phaser.Point.add(forwardVelocity,orthogonalVel.multiply(drift,drift));
+    this.body.velocity.x = resultVel.x;
+    this.body.velocity.y = resultVel.y;
+}
+////////////////////
 Ship = function(x,y){
     Phaser.Sprite.call(this,game,x,y);
 
     game.physics.p2.enable(this,true);
     this.body.setRectangle(60,140);
+    this.body.damping = 0.5;
     this.body.angularDamping = 0.5;
 
     game.add.existing(this);
@@ -33,197 +67,46 @@ Ship.constructor = Ship;
 Ship.prototype.getTransform = function () {
     return new Transform(this.body);
 }
+Ship.prototype.update = function () {
+    this.killOrthogonalVelocity(0.95);
+}
+Ship.prototype.killOrthogonalVelocity = function (drift) {
+    var vel = new Phaser.Point(this.body.velocity.x,this.body.velocity.y);
+    var forwardVelocity = Phaser.Point.projectUnit(vel,this.getTransform().forward);
+    var orthogonalVel = Phaser.Point.project(vel,this.getTransform().right);
 
+    var resultVel = Phaser.Point.add(forwardVelocity,orthogonalVel.multiply(drift,drift));
+    this.body.velocity.x = resultVel.x;
+    this.body.velocity.y = resultVel.y;
+    
+}
+Ship.prototype.fire = function () {
+    var startPos = this.getTransform().right;
+    var ball = new CannonBall(this.x+startPos.x*30,this.y+startPos.y*30);
+    ball.body.velocity.x = startPos.x * 500;
+    ball.body.velocity.y = startPos.y * 500;
+}
 
-Atom = function (x, y, numLayers, id) {
-    Phaser.Sprite.call(this, game, x, y, 'proton');
+CannonBall = function (x,y) {
+    Phaser.Sprite.call(this,game,x,y);
 
-    this.scale.set(0.1, 0.1);
-    this.anchor.x = 0.5;
-    this.anchor.y = 0.5;
-    this.dest = null;
-    game.physics.p2.enable(this);
-    this.body.damping = 0.9;
-    this.body.setCircle(this.width / 2);
-
-    this.electricCharge = 0;
-    this.currentLevel = 0;
-
-    this.electronLayers = [];
-
-    this.electronLayersDraw = game.add.graphics();
-    this.electronLayersDraw.lineStyle(0.4, '#012f23');
-
-    this.nearestElectron;
-
-    this.coolDown = 800;
-    this.coolDownCounter = 0;
-
-    this.addLayer = function () {
-        if (this.electronLayers.length >= MAX_LAYERS) {
-            return;
-        }
-        this.currentLevel++;
-        var radius = this.currentLevel * 15 + 10;
-        var layer = new ElectronLayer(radius, 2 * this.currentLevel * this.currentLevel, this.currentLevel); // N = 2n^2
-        this.electronLayers.push(layer);
-
-
-        //draw
-        this.electronLayersDraw.drawCircle(0, 0, radius * 2);
-
-        console.log('layer created', radius, layer.maxElectrons)
-    };
-    for (var i = 0; i < numLayers; i++) {
-        this.addLayer();
-    }
-
-
-    this.addElectron = function (e) {
-        var currLayer = this.electronLayers[this.electronLayers.length - 1];
-
-        if (currLayer.electrons.length < currLayer.maxElectrons) {
-            //e.bound = game.physics.p2.createDistanceConstraint(this.body, e.body,currLayer.radius)
-            e.owner = this;
-
-            e.setState(Electron.IN_ATOM);
-
-            currLayer.addElectronToLayer(e);
-
-            electrons.splice(electrons.indexOf(e), 1);
-        }
-
-    };
-    this.upperEnergy = function () {
-
-    };
-    this.lowerEnergy = function () {
-        for (var index = this.electronLayers.length - 1; index > 0; index--) {
-            var layer = this.electronLayers[index];
-            var nextLayer = this.electronLayers[index - 1];
-            if (layer != undefined && nextLayer != undefined) {
-                if (nextLayer.electrons.length < nextLayer.maxElectrons && layer.electrons.length > 0) {
-                    var electron = layer.electrons.shift();
-                    nextLayer.addElectronToLayer(electron);
-                    return layer;
-                }
-            }
-        }
-        return null;
-    };
-    this.emittePhoton = function (endPoint) {
-        var layer = this.lowerEnergy();
-        if (layer) {
-            var rad = layer.radius;
-            var endPoint = endPoint;
-            var pointOffset = new Phaser.Point(endPoint.x - this.x, endPoint.y - this.y);
-            pointOffset.normalize();
-            pointOffset.x *= rad + 10;
-            pointOffset.y *= rad + 10;
-            var startPoint = new Phaser.Point(this.x + pointOffset.x, this.y + pointOffset.y);
-            new Photon(startPoint, endPoint);
-        }
-    };
-    this.removeElectronFromOutterLevel = function () {
-
-        for (var index = this.electronLayers.length - 1; index >= 0; index--) {
-            if (this.electronLayers[index].electrons.length > 0) {
-                var electron = this.electronLayers[index].electrons.shift();
-                this.removeElectron(electron);
-                break;
-            }
-        }
-
-    };
-    this.removeAllElectrons = function () {
-        for (var index = this.electronLayers.length - 1; index >= 0; index--) {
-            while (this.electronLayers[index].electrons.length > 0) {
-                var electron = this.electronLayers[index].electrons.shift();
-                this.removeElectron(electron);
-            }
-        }
-    };
-    this.removeElectron = function (electron) {
-        var vel = new Phaser.Point(electron.x - this.x, electron.y - this.y);
-        vel.normalize();
-        electron.body.setZeroVelocity();//обнуляем, чтобы летело радиально
-        electron.body.velocity.x = vel.x * 1000;
-        electron.body.velocity.y = vel.y * 1000;
-        electron.setState(Electron.METASTABLE);
-
-        electrons.push(electron);
-    }
-
+    game.physics.p2.enable(this,true);
+    this.body.setCircle(3);
+    this.body.mass = 0.1;
     game.add.existing(this);
-
-    //this.onCollide = function (body, shape1, shape2, equation) {
-    //    if (body != null) {
-    //        if (body.sprite instanceof Photon) {
-    //            //this.removeElectronFromOutterLevel();
-    //            this.removeAllElectrons();
-    //            body.sprite.remove();
-    //        }
-    //        if (body.sprite instanceof Electron) {
-    //            if(body.sprite.owner == null)
-    //            {
-    //                this.addElectron(body.sprite);
-    //                body.sprite.setState(Electron.IN_ATOM);
-    //            }
-    //        }
-    //    }
-    //
-    //};
-    //this.body.onBeginContact.add(this.onCollide, this);
-    this.remove = function () {
-        this.destroy();
-        this.electronLayersDraw.destroy();
-    }
-};
-Atom.prototype = Object.create(Phaser.Sprite.prototype);
-Atom.constructor = Atom;
-Atom.prototype.update = function () {
-
-    this.electronLayersDraw.position = this.position;
-
-    var atom = this;//почему-то теряется контекст
-    //electrons.forEach(function (e) {
-    //    var dist = game.physics.arcade.distanceBetween(atom, e);
-    //    var layer = atom.electronLayers[atom.electronLayers.length - 1];
-    //    if (dist <= layer.radius) {
-    //        atom.addElectron(e);
-    //    }
-    //});
-    atom.electronLayers.forEach(function (layer) {
-        layer.electrons.forEach(function (e) {
-            var angle = ((Math.PI * 2) * (layer.electrons.indexOf(e) + 1)) / layer.maxElectrons + layer.t;
-            var x = atom.x + Math.cos(angle) * layer.radius;
-            var y = atom.y + Math.sin(angle) * layer.radius;
-            if (game.physics.arcade.distanceBetween(new Phaser.Point(x, y), e) > 30) {
-                e.body.velocity.x = (x - e.x) * 15;
-                e.body.velocity.y = (y - e.y) * 15;
-            }
-            else {
-                e.body.velocity.x = (x - e.x) * 50;
-                e.body.velocity.y = (y - e.y) * 50;
-            }
-
-        });
-        layer.update();
-    });
-
-    if(atom.coolDownCounter < atom.coolDown)
-    {
-        atom.coolDownCounter += game.time.physicsElapsedMS;
-    }
-};
-
+}
+CannonBall.prototype = Object.create(Phaser.Sprite.prototype);
+CannonBall.constructor = CannonBall;
 
 
 var instructions;
 var ship;
+var rudder;
 
 var cursors;
 var graphics;
+
+var wind;
 
 function preload() {
     game.load.image('background', 'assets/background.jpg');
@@ -238,6 +121,16 @@ function create() {
     game.physics.p2.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
     ship = new Ship(400,400);
+    rudder = new Rudder(400,500);
+    game.physics.p2.createRevoluteConstraint(ship,[0,80],rudder,[0,-rudder.height/2])
+
+    wind = (new Phaser.Point(game.rnd.realInRange(-1,1),game.rnd.realInRange(-1,1))).normalize();
+
+    for(var i = 0;i<10;i++)
+    {
+        new CannonBall(i*50,300);
+    }
+
     game.camera.follow(ship);
 
     graphics = game.add.graphics(0,0);
@@ -246,8 +139,8 @@ function create() {
     cursors = game.input.keyboard.createCursorKeys();
 
     game.input.onDown.add(click, this);
-    instructions = game.add.text(10, 10, "ARROWS for move \n Release photon left click of mouse", {
-        font: "20px Arial",
+    instructions = game.add.text(game.camera.width - 100, 10, "Кораблики", {
+        font: "14px Ubuntu",
         fill: "#ffffff",
         align: "center"
     });
@@ -255,25 +148,38 @@ function create() {
 }
 
 function click(event) {
-
+    ship.fire();
 }
 
-function killOrthogonalVelocity(){
 
-
-}
 
 function update() {
+
+    var vel = new Phaser.Point(ship.body.velocity.x,ship.body.velocity.y);
+    var coeff = game.math.mapLinear(vel.getMagnitude(),0,200,0,1);
     graphics.clear()
-    graphics.lineStyle(1,0x000000,1)
+    graphics.lineStyle(1,0xffff00,1)
     graphics.moveTo(ship.x,ship.y);
-    graphics.lineTo(ship.x + ship.getTransform().left.x*100,ship.y + ship.getTransform().left.y * 100)
+    var target = ship.getTransform().right.rotate(0,0,30*coeff,true);
+    graphics.lineTo(ship.x + target.x*100,ship.y + target.y*100);
+    graphics.moveTo(ship.x,ship.y);
+    target = ship.getTransform().right.rotate(0,0,-30*coeff,true);
+    graphics.lineTo(ship.x + target.x*100,ship.y + target.y*100);
+
+
+
+
     if(cursors.up.isDown)
     {
         ship.body.thrust(200);
     }
     if(cursors.right.isDown)
     {
-        ship.body.rotateRight(30);
+        rudder.body.rotateLeft(50);
     }
+    if(cursors.left.isDown)
+    {
+        rudder.body.rotateRight(50);
+    }
+
 }
