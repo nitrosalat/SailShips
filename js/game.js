@@ -160,12 +160,12 @@ function update() {
     graphics.clear()
     graphics.lineStyle(1,0xffff00,1)
     graphics.moveTo(ship.x,ship.y);
-    var target = ship.getTransform().right.rotate(0,0,30*coeff,true);
+    var target = ship.getTransform().right.rotate(0,0,30*coeff+5,true);
     graphics.lineTo(ship.x + target.x*100,ship.y + target.y*100);
     graphics.moveTo(ship.x,ship.y);
-    target = ship.getTransform().right.rotate(0,0,-30*coeff,true);
+    target = ship.getTransform().right.rotate(0,0,-30*coeff-5,true);
     graphics.lineTo(ship.x + target.x*100,ship.y + target.y*100);
-
+    graphics.arc(ship.x,ship.y,300,game.math.degToRad(ship.body.angle-30*coeff-5),game.math.degToRad(ship.body.angle+30*coeff+5));
 
 
 
